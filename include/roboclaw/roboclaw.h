@@ -1,9 +1,9 @@
 /*
- * roboclaw.h - header file defines Roboclaw Class 
+ * roboclaw.h - header file defines Roboclaw Class
  *
  * This code is a modified version of the Ion Motion Control Arduino library.
  * To view the code in its original form, download it at
- *     http://downloads.ionmc.com/code/arduino.zip 
+ *     http://downloads.ionmc.com/code/arduino.zip
  */
 
 #ifndef ROBOCLAW_H
@@ -20,8 +20,8 @@ class Roboclaw
         /*
          * initializes serial port with specified file and baudrate
          */
-		Roboclaw(std::string &port, uint32_t baudrate);	/* ack option only available on 3.1.8 and newer firmware */
-
+		Roboclaw(std::string port, uint32_t baudrate);	/* ack option only available on 3.1.8 and newer firmware */
+		bool Open();
         /*
          * closes serial port and frees the associated memory
          */
@@ -138,13 +138,13 @@ class Roboclaw
 		 */
 		void crc_update(uint8_t data);
 
-		/* 
+		/*
 		 * returns the current value of the crc caluclation
 		 * this will likely be deprecated in future version as the crc_ variable
 		 * 		can be accessed directly
 		 */
 		uint16_t crc_get();
-		
+
 		/*
 		 * writes n bytes to the serial port as specified by the arguments
 		 */
@@ -202,18 +202,18 @@ class Roboclaw
          */
 	    int16_t read();
 
-        /* 
-         * pointer to the serial port used for communication with the roboclaw 
+        /*
+         * pointer to the serial port used for communication with the roboclaw
          */
         serial::Serial * port_;
 
-        /* 
-         * tracks and update the crc calculation 
+        /*
+         * tracks and update the crc calculation
          */
 	    uint16_t crc_;
 
-		/* 
-		 * enum stores addresses of all the roboclaw's registers 
+		/*
+		 * enum stores addresses of all the roboclaw's registers
 		 */
 		enum {
 				M1FORWARD = 0,

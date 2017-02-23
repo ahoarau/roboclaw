@@ -3,7 +3,7 @@
  *
  * This code is a modified version of the Ion Motion Control Arduino library.
  * To view the code in its original form, download it at
- *     http://downloads.ionmc.com/code/arduino.zip 
+ *     http://downloads.ionmc.com/code/arduino.zip
  */
 
 #include <roboclaw/roboclaw.h>
@@ -18,13 +18,22 @@
 /*
  * Constructor opens port at desired baudrate
  */
-Roboclaw::Roboclaw(std::string &port, uint32_t baudrate)
+Roboclaw::Roboclaw(std::string port, uint32_t baudrate)
 {
     /* initialize pointer to a new Serial port object */
     port_ = new serial::Serial(port, baudrate, serial::Timeout::simpleTimeout(100));
-    port_->open();
 }
 
+bool Roboclaw::Open()
+{
+    try
+    {
+    	port_->open();
+    }
+    catch(serial::SerialException& e){}
+
+    return port_->isOpen();
+}
 /*
  * Destructor closes serial port and frees the associated memory
  */
@@ -78,7 +87,7 @@ void Roboclaw::crc_clear()
 
 /*
  * updates the crc calculation with based on the specified byte
- * see the Roboclaw sheet and user manual for more on this 
+ * see the Roboclaw sheet and user manual for more on this
  */
 void Roboclaw::crc_update (uint8_t data)
 {
@@ -223,7 +232,7 @@ uint8_t Roboclaw::read1(uint8_t address,uint8_t cmd,bool *valid)
     uint8_t value=0;
     uint8_t trys=MAXRETRY;
     /* data is a signed int to allow for -1 assignment in error */
-    int16_t data; 
+    int16_t data;
     do{
         flush();
 
