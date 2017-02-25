@@ -7,7 +7,8 @@
  */
 
 #include <roboclaw/roboclaw.h>
-
+#include <iostream>
+#include <algorithm>
 /*
  * Macros taken directly from Arduino Library
  */
@@ -91,14 +92,29 @@ void Roboclaw::crc_clear()
  */
 void Roboclaw::crc_update (uint8_t data)
 {
-    int i;
     crc_ = crc_^ ((uint16_t)data << 8);
-    for (i=0; i<8; i++)
+    for (uint8_t i=0; i<8; i++)
     {
         if (crc_ & 0x8000)
             crc_ = (crc_ << 1) ^ 0x1021;
         else
             crc_ <<= 1;
+    }
+}
+
+void Roboclaw::crc_update(uint8_t * packet, uint32_t nBytes)
+{
+    for (uint32_t byte = 0; byte < nBytes; byte++)
+    {
+        crc_ = crc_ ^ ((uint16_t)packet[byte] << 8);
+        for (uint8_t bit = 0; bit < 8; bit++)
+        {
+            if (crc_ & 0x8000) {
+                crc_ = (crc_ << 1) ^ 0x1021;
+            } else {
+                crc_ = crc_ << 1;
+            }
+        }
     }
 }
 
@@ -375,49 +391,70 @@ uint32_t Roboclaw::read4(uint8_t address, uint8_t cmd, bool *valid)
  */
 uint32_t Roboclaw::read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *valid)
 {
+    flush();
+    uint8_t command[2] = {address,cmd};
+    port_->write(command,2);
+
+    uint8_t buffer[7] = {0,0,0,0,0,0,0};
+    size_t n_read = port_->read(buffer,7);
+
     if(valid)
-        *valid = false;
+    {
+        *valid = static_cast<bool>(buffer[6]);
+    }
 
-    uint16_t value=0;
-    uint8_t trys=MAXRETRY;
-    int16_t data;
-    do{
-        flush();
+    int32_t data_ = buffer[0]<<24|buffer[1]<<16|buffer[2]<<8|buffer[3];
 
-        crc_clear();
-        write(address);
-        crc_update(address);
-        write(cmd);
-        crc_update(cmd);
+    if(status)
+    {
+        *status = buffer[4];
+    }
 
-        data = read();
-        crc_update(data);
-        value=(uint16_t)data<<8;
-
-        if(data!=-1){
-            data = read();
-            crc_update(data);
-            value|=(uint16_t)data;
-        }
-
-        if(data!=-1){
-            uint16_t ccrc;
-            data = read();
-            if(data!=-1){
-                ccrc = data << 8;
-                data = read();
-                if(data!=-1){
-                    ccrc |= data;
-                    if(crc_get()==ccrc){
-                        *valid = true;
-                        return value;
-                    }
-                }
-            }
-        }
-    }while(trys--);
-
-    return false;
+    return data_;
+    //
+    // if(valid)
+    //     *valid = false;
+    //
+    // uint32_t value=0;
+    // uint8_t trys=MAXRETRY;
+    // int16_t data;
+    // do{
+    //     flush();
+    //
+    //     crc_clear();
+    //     write(address);
+    //     crc_update(address);
+    //     write(cmd);
+    //     crc_update(cmd);
+    //
+    //     data = read();
+    //     crc_update(data);
+    //     value=(uint16_t)data<<8;
+    //
+    //     if(data!=-1){
+    //         data = read();
+    //         crc_update(data);
+    //         value|=(uint16_t)data;
+    //     }
+    //
+    //     if(data!=-1){
+    //         uint16_t ccrc;
+    //         data = read();
+    //         if(data!=-1){
+    //             ccrc = data << 8;
+    //             data = read();
+    //             if(data!=-1){
+    //                 ccrc |= data;
+    //                 if(crc_get()==ccrc){
+    //                     *valid = true;
+    //                     return value;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }while(trys--);
+    //
+    // return false;
 }
 
 /************************************************************

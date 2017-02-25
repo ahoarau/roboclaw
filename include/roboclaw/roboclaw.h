@@ -137,6 +137,10 @@ class Roboclaw
 		 * updates the crc calculation with the specified byte
 		 */
 		void crc_update(uint8_t data);
+		/*
+		 * updates the crc calculation with the specified bytes
+		 */
+		void crc_update(uint8_t * packet, uint32_t nBytes);
 
 		/*
 		 * returns the current value of the crc caluclation

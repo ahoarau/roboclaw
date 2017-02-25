@@ -1,7 +1,6 @@
 #include "roboclaw/roboclaw.h"
 #include <iostream>
 #include <string>
-#include <bitset>
 
 int main()
 {
@@ -14,9 +13,10 @@ int main()
     bool valid = false;
     for(;;)
     {
-        int m1 = claw.ReadEncM1(0x80,&status,&valid);
-        std::cout << "Roboclaw encoder : " << m1 << " status : " << std::bitset<8>(status) << " valid : "<< valid<< std::endl;
+        int32_t m1 = claw.ReadEncM1(0x80,&status,&valid);
+        int32_t vm1 = claw.ReadSpeedM1(0x80,&status,&valid);
+        std::cout << "Roboclaw m1 encoder : " << m1 << " speed : " << vm1 << std::endl;
     }
-    
+
     return 0;
 }
