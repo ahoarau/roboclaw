@@ -21,7 +21,7 @@
 Roboclaw::Roboclaw(std::string port, uint32_t baudrate)
 {
     /* initialize pointer to a new Serial port object */
-    port_ = new serial::Serial(port, baudrate, serial::Timeout::simpleTimeout(100));
+    port_ = new serial::Serial(port, baudrate, serial::Timeout::simpleTimeout(1000));
 }
 
 bool Roboclaw::Open()
@@ -74,7 +74,7 @@ int16_t Roboclaw::read()
  */
 void Roboclaw::flush()
 {
-    port_->flush();
+    port_->flushInput();
 }
 
 /*
