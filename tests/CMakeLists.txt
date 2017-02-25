@@ -6,3 +6,6 @@ target_link_libraries( read_encoder roboclaw)
 
 add_executable(read read.cpp)
 target_link_libraries( read roboclaw)
+
+add_executable(set_m1_vel set_m1_vel.cpp)
+target_link_libraries( set_m1_vel roboclaw)

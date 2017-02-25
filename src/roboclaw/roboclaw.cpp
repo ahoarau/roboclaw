@@ -91,6 +91,8 @@ bool Roboclaw::write_n(uint8_t cnt, ... )
     uint8_t trys=MAXRETRY;
     do
     {
+        port_->flushInput();
+
         crc_clear();
 
         va_list marker;
@@ -105,20 +107,18 @@ bool Roboclaw::write_n(uint8_t cnt, ... )
         }
         va_end( marker );
         /* send the crc to the Roboclaw and check for return value */
-        uint8_t crc_to_send[2] = {crc_,crc_ >> 8};
+        uint8_t crc_to_send[2] = {crc_ >> 8 ,crc_ };
 
-        if(port_->write(crc_to_send, 2) != 2)
-        {
-            continue;
-        }
+        port_->write(crc_to_send, 2);
 
-        uint8_t buffer[2] = {0,0};
-        size_t n_read = port_->read(buffer,2);
-
-        uint16_t crc_read = buffer[0] << 8 | buffer[1];
+        uint8_t crc_read;
+        port_->read(&crc_read,1);
 
         if(crc_read==0xFF)
+        {
             return true;
+        }
+
     }while(trys--);
 
     return false;
@@ -155,11 +155,6 @@ bool Roboclaw::read_n(uint8_t cnt,uint8_t address,uint8_t cmd,...)
 
             size_t n_read = port_->read(buffer,4);
 
-            if(n_read != 4)
-            {
-                return 0;
-            }
-
             // Update the Crc with the response we just read, minus the 2 crc bytes :)
             crc_update(buffer,4);
 
@@ -180,83 +175,6 @@ bool Roboclaw::read_n(uint8_t cnt,uint8_t address,uint8_t cmd,...)
     }while(trys--);
 
     return false;
-    //
-    // int32_t value=0;
-    // uint8_t trys=MAXRETRY;
-    // int16_t data;
-    // do{
-    //     port_->flushInput();
-    //
-    //     data=0;
-    //     crc_clear();
-    //     write(address);
-    //     crc_update(address);
-    //     write(cmd);
-    //     crc_update(cmd);
-    //
-    //     /* read each four byte output of the command into a uint32_t */
-    //     va_list marker;
-    //     va_start( marker, cmd );     /* Initialize variable arguments. */
-    //     for(uint8_t i=0;i<cnt;i++){
-    //         /* retrieve the pointer to the next uint32_t to be updated */
-    //         uint32_t *ptr = va_arg(marker, uint32_t *);
-    //
-    //         if(data!=-1){
-    //             data = read();
-    //             crc_update(data);
-    //             value=(uint32_t)data<<24;
-    //         }
-    //         else{
-    //             break;
-    //         }
-    //
-    //         if(data!=-1){
-    //             data = read();
-    //             crc_update(data);
-    //             value|=(uint32_t)data<<16;
-    //         }
-    //         else{
-    //             break;
-    //         }
-    //
-    //         if(data!=-1){
-    //             data = read();
-    //             crc_update(data);
-    //             value|=(uint32_t)data<<8;
-    //         }
-    //         else{
-    //             break;
-    //         }
-    //
-    //         if(data!=-1){
-    //             data = read();
-    //             crc_update(data);
-    //             value|=(uint32_t)data;
-    //         }
-    //         else{
-    //             break;
-    //         }
-    //
-    //         *ptr = value;
-    //     }
-    //     va_end( marker );              /* Reset variable arguments.      */
-    //
-    //     /* read crc from the roboclaw and double check with our calculation */
-    //     if(data!=-1){
-    //         uint16_t ccrc;
-    //         data = read();
-    //         if(data!=-1){
-    //             ccrc = data << 8;
-    //             data = read();
-    //             if(data!=-1){
-    //                 ccrc |= data;
-    //                 return crc_get()==ccrc;
-    //             }
-    //         }
-    //     }
-    // }while(trys--);
-    //
-    // return false;
 }
 
 /*
@@ -281,11 +199,6 @@ uint8_t Roboclaw::read1(uint8_t address,uint8_t cmd,bool *valid)
         uint8_t buffer[3] = {0,0,0};
 
         size_t n_read = port_->read(buffer,3);
-
-        if(n_read != 3)
-        {
-            return 0;
-        }
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,1);
@@ -338,11 +251,6 @@ uint16_t Roboclaw::read2(uint8_t address,uint8_t cmd,bool *valid)
 
         size_t n_read = port_->read(buffer,4);
 
-        if(n_read != 4)
-        {
-            return 0;
-        }
-
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,2);
 
@@ -394,11 +302,6 @@ int32_t Roboclaw::read4(uint8_t address, uint8_t cmd, bool *valid)
         uint8_t buffer[6] = {0,0,0,0,0,0};
 
         size_t n_read = port_->read(buffer,6);
-
-        if(n_read != 6)
-        {
-            return 0;
-        }
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,4);
@@ -453,11 +356,6 @@ int32_t Roboclaw::read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *v
         uint8_t buffer[7] = {0,0,0,0,0,0,0};
 
         size_t n_read = port_->read(buffer,7);
-
-        if(n_read != 7)
-        {
-            return 0;
-        }
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,5);
