@@ -49,42 +49,42 @@ class Roboclaw
 		bool TurnLeftMixed(uint8_t address, uint8_t speed);
 		bool ForwardBackwardMixed(uint8_t address, uint8_t speed);
 		bool LeftRightMixed(uint8_t address, uint8_t speed);
-		uint32_t ReadEncM1(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
-		uint32_t ReadEncM2(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
+		int32_t ReadEncM1(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
+		int32_t ReadEncM2(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
 		bool SetEncM1(uint8_t address, int32_t val);
 		bool SetEncM2(uint8_t address, int32_t val);
-		uint32_t ReadSpeedM1(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
-		uint32_t ReadSpeedM2(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
+		int32_t ReadSpeedM1(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
+		int32_t ReadSpeedM2(uint8_t address, uint8_t *status=NULL,bool *valid=NULL);
 		bool ResetEncoders(uint8_t address);
-		bool ReadVersion(uint8_t address,char *version);
+		bool ReadVersion(uint8_t address,std::string& version);
 		uint16_t ReadMainBatteryVoltage(uint8_t address,bool *valid=NULL);
 		uint16_t ReadLogicBatteryVoltage(uint8_t address,bool *valid=NULL);
 		bool SetMinVoltageLogicBattery(uint8_t address, uint8_t voltage);
 		bool SetMaxVoltageLogicBattery(uint8_t address, uint8_t voltage);
 		bool SetM1VelocityPID(uint8_t address, float Kp, float Ki, float Kd, uint32_t qpps);
 		bool SetM2VelocityPID(uint8_t address, float Kp, float Ki, float Kd, uint32_t qpps);
-		uint32_t ReadISpeedM1(uint8_t address,uint8_t *status=NULL,bool *valid=NULL);
-		uint32_t ReadISpeedM2(uint8_t address,uint8_t *status=NULL,bool *valid=NULL);
+		int32_t ReadISpeedM1(uint8_t address,uint8_t *status=NULL,bool *valid=NULL);
+		int32_t ReadISpeedM2(uint8_t address,uint8_t *status=NULL,bool *valid=NULL);
 		bool DutyM1(uint8_t address, uint16_t duty);
 		bool DutyM2(uint8_t address, uint16_t duty);
 		bool DutyM1M2(uint8_t address, uint16_t duty1, uint16_t duty2);
-		bool SpeedM1(uint8_t address, uint32_t speed);
-		bool SpeedM2(uint8_t address, uint32_t speed);
-		bool SpeedM1M2(uint8_t address, uint32_t speed1, uint32_t speed2);
-		bool SpeedAccelM1(uint8_t address, uint32_t accel, uint32_t speed);
-		bool SpeedAccelM2(uint8_t address, uint32_t accel, uint32_t speed);
-		bool SpeedAccelM1M2(uint8_t address, uint32_t accel, uint32_t speed1, uint32_t speed2);
-		bool SpeedDistanceM1(uint8_t address, uint32_t speed, uint32_t distance, uint8_t flag=0);
-		bool SpeedDistanceM2(uint8_t address, uint32_t speed, uint32_t distance, uint8_t flag=0);
-		bool SpeedDistanceM1M2(uint8_t address, uint32_t speed1, uint32_t distance1, uint32_t speed2, uint32_t distance2, uint8_t flag=0);
-		bool SpeedAccelDistanceM1(uint8_t address, uint32_t accel, uint32_t speed, uint32_t distance, uint8_t flag=0);
-		bool SpeedAccelDistanceM2(uint8_t address, uint32_t accel, uint32_t speed, uint32_t distance, uint8_t flag=0);
-		bool SpeedAccelDistanceM1M2(uint8_t address, uint32_t accel, uint32_t speed1, uint32_t distance1, uint32_t speed2, uint32_t distance2, uint8_t flag=0);
+		bool SpeedM1(uint8_t address, int32_t speed);
+		bool SpeedM2(uint8_t address, int32_t speed);
+		bool SpeedM1M2(uint8_t address, int32_t speed1, int32_t speed2);
+		bool SpeedAccelM1(uint8_t address, uint32_t accel, int32_t speed);
+		bool SpeedAccelM2(uint8_t address, uint32_t accel, int32_t speed);
+		bool SpeedAccelM1M2(uint8_t address, uint32_t accel, int32_t speed1, int32_t speed2);
+		bool SpeedDistanceM1(uint8_t address, int32_t speed, uint32_t distance, uint8_t flag=0);
+		bool SpeedDistanceM2(uint8_t address, int32_t speed, uint32_t distance, uint8_t flag=0);
+		bool SpeedDistanceM1M2(uint8_t address, int32_t speed1, uint32_t distance1, int32_t speed2, uint32_t distance2, uint8_t flag=0);
+		bool SpeedAccelDistanceM1(uint8_t address, uint32_t accel, int32_t speed, uint32_t distance, uint8_t flag=0);
+		bool SpeedAccelDistanceM2(uint8_t address, uint32_t accel, int32_t speed, uint32_t distance, uint8_t flag=0);
+		bool SpeedAccelDistanceM1M2(uint8_t address, uint32_t accel, int32_t speed1, uint32_t distance1, int32_t speed2, uint32_t distance2, uint8_t flag=0);
 		bool ReadBuffers(uint8_t address, uint8_t &depth1, uint8_t &depth2);
 		bool ReadPWMs(uint8_t address, int16_t &pwm1, int16_t &pwm2);
 		bool ReadCurrents(uint8_t address, int16_t &current1, int16_t &current2);
-		bool SpeedAccelM1M2_2(uint8_t address, uint32_t accel1, uint32_t speed1, uint32_t accel2, uint32_t speed2);
-		bool SpeedAccelDistanceM1M2_2(uint8_t address, uint32_t accel1, uint32_t speed1, uint32_t distance1, uint32_t accel2, uint32_t speed2, uint32_t distance2, uint8_t flag=0);
+		bool SpeedAccelM1M2_2(uint8_t address, uint32_t accel1, int32_t speed1, uint32_t accel2, int32_t speed2);
+		bool SpeedAccelDistanceM1M2_2(uint8_t address, uint32_t accel1, int32_t speed1, uint32_t distance1, uint32_t accel2, int32_t speed2, uint32_t distance2, uint8_t flag=0);
 		bool DutyAccelM1(uint8_t address, uint16_t duty, uint32_t accel);
 		bool DutyAccelM2(uint8_t address, uint16_t duty, uint32_t accel);
 		bool DutyAccelM1M2(uint8_t address, uint16_t duty1, uint32_t accel1, uint16_t duty2, uint32_t accel2);
@@ -98,9 +98,9 @@ class Roboclaw
 		bool SetM2PositionPID(uint8_t address,float kp,float ki,float kd,uint32_t kiMax,uint32_t deadzone,uint32_t min,uint32_t max);
 		bool ReadM1PositionPID(uint8_t address,float &Kp,float &Ki,float &Kd,uint32_t &KiMax,uint32_t &DeadZone,uint32_t &Min,uint32_t &Max);
 		bool ReadM2PositionPID(uint8_t address,float &Kp,float &Ki,float &Kd,uint32_t &KiMax,uint32_t &DeadZone,uint32_t &Min,uint32_t &Max);
-		bool SpeedAccelDeccelPositionM1(uint8_t address,uint32_t accel,uint32_t speed,uint32_t deccel,uint32_t position,uint8_t flag);
-		bool SpeedAccelDeccelPositionM2(uint8_t address,uint32_t accel,uint32_t speed,uint32_t deccel,uint32_t position,uint8_t flag);
-		bool SpeedAccelDeccelPositionM1M2(uint8_t address,uint32_t accel1,uint32_t speed1,uint32_t deccel1,uint32_t position1,uint32_t accel2,uint32_t speed2,uint32_t deccel2,uint32_t position2,uint8_t flag);
+		bool SpeedAccelDeccelPositionM1(uint8_t address,uint32_t accel,int32_t speed,uint32_t deccel,uint32_t position,uint8_t flag);
+		bool SpeedAccelDeccelPositionM2(uint8_t address,uint32_t accel,int32_t speed,uint32_t deccel,uint32_t position,uint8_t flag);
+		bool SpeedAccelDeccelPositionM1M2(uint8_t address,uint32_t accel1,int32_t speed1,uint32_t deccel1,uint32_t position1,uint32_t accel2,int32_t speed2,uint32_t deccel2,uint32_t position2,uint8_t flag);
 		bool SetM1DefaultAccel(uint8_t address, uint32_t accel);
 		bool SetM2DefaultAccel(uint8_t address, uint32_t accel);
 		bool SetPinFunctions(uint8_t address, uint8_t S3mode, uint8_t S4mode, uint8_t S5mode);
@@ -132,11 +132,6 @@ class Roboclaw
 		 * resets the current crc caluclation
 		 */
 		void crc_clear();
-
-		/*
-		 * updates the crc calculation with the specified byte
-		 */
-		void crc_update(uint8_t data);
 		/*
 		 * updates the crc calculation with the specified bytes
 		 */
@@ -147,7 +142,7 @@ class Roboclaw
 		 * this will likely be deprecated in future version as the crc_ variable
 		 * 		can be accessed directly
 		 */
-		uint16_t crc_get();
+		uint16_t& crc_get();
 
 		/*
 		 * writes n bytes to the serial port as specified by the arguments
@@ -167,14 +162,14 @@ class Roboclaw
 		 * indicates the success/failure of the operation through the valid argument
 		 * returns the contents of the register if successful
 		 */
-		uint32_t read4_1(uint8_t address,uint8_t cmd,uint8_t *status,bool *valid);
+		int32_t read4_1(uint8_t address,uint8_t cmd,uint8_t *status,bool *valid);
 
         /*
          * reads a 4 byte register
          * indicates success/failure of the operation through the valid argument
          * returns the contents of the register if successful
          */
-		uint32_t read4(uint8_t address,uint8_t cmd,bool *valid);
+		int32_t read4(uint8_t address,uint8_t cmd,bool *valid);
 
 		/*
 		 * reads 2 byte register
@@ -189,22 +184,6 @@ class Roboclaw
 		 * returns the register's contents upon success
 		 */
 		uint8_t read1(uint8_t address,uint8_t cmd,bool *valid);
-
-		/*
-		 * flushes the input and output buffers of the serial port
-		 */
-		void flush();
-
-		/*
-		 * writes a single byte to the serial port
-		 */
-	    void write(uint8_t data);
-
-        /*
-         * reads a single byte from the serial port
-         * returns the byte read or -1 in error
-         */
-	    int16_t read();
 
         /*
          * pointer to the serial port used for communication with the roboclaw

@@ -5,8 +5,8 @@
 int main()
 {
     Roboclaw claw("/dev/serial0",115200);
-    char ver[256];
-    claw.ReadVersion(0x80,ver);
-    std::cout << "Roboclaw version : " << std::string(ver) << std::endl;
+    std::string version;
+    claw.ReadVersion(0x80,version);
+    std::cout << "Roboclaw version : " << version << std::endl;
     return 0;
 }

@@ -45,40 +45,6 @@ Roboclaw::~Roboclaw()
 }
 
 /*
- * writes a single byte to the serial port
- */
-void Roboclaw::write(uint8_t byte)
-{
-    port_->write(&byte, 1);
-}
-
-/*
- * reads and returns a single byte from the serial port or -1 in error or timeout
- * returns an int16_t to be consistent with the Arduino library and allow for
- *       returning -1 error
- */
-int16_t Roboclaw::read()
-{
-    uint8_t buff[1];
-    if (port_->read(buff, 1) == 1)
-    {
-        return buff[0];
-    }
-    else
-    {
-        return -1;
-    }
-}
-
-/*
- * flushes the serial port's input and output buffers
- */
-void Roboclaw::flush()
-{
-    port_->flushInput();
-}
-
-/*
  * resets the crc calculation
  */
 void Roboclaw::crc_clear()
@@ -90,17 +56,6 @@ void Roboclaw::crc_clear()
  * updates the crc calculation with based on the specified byte
  * see the Roboclaw sheet and user manual for more on this
  */
-void Roboclaw::crc_update (uint8_t data)
-{
-    crc_ = crc_^ ((uint16_t)data << 8);
-    for (uint8_t i=0; i<8; i++)
-    {
-        if (crc_ & 0x8000)
-            crc_ = (crc_ << 1) ^ 0x1021;
-        else
-            crc_ <<= 1;
-    }
-}
 
 void Roboclaw::crc_update(uint8_t * packet, uint32_t nBytes)
 {
@@ -112,7 +67,7 @@ void Roboclaw::crc_update(uint8_t * packet, uint32_t nBytes)
             if (crc_ & 0x8000) {
                 crc_ = (crc_ << 1) ^ 0x1021;
             } else {
-                crc_ = crc_ << 1;
+                crc_ <<= 1;
             }
         }
     }
@@ -123,7 +78,7 @@ void Roboclaw::crc_update(uint8_t * packet, uint32_t nBytes)
  * this is not necessary as private methods can directly access the crc_ attribute,
  *      but it is being kept for now to keep the original Arduino code intact
  */
-uint16_t Roboclaw::crc_get()
+uint16_t& Roboclaw::crc_get()
 {
     return crc_;
 }
@@ -134,23 +89,38 @@ uint16_t Roboclaw::crc_get()
 bool Roboclaw::write_n(uint8_t cnt, ... )
 {
     uint8_t trys=MAXRETRY;
-    do{
+    do
+    {
         crc_clear();
 
         va_list marker;
         va_start(marker, cnt);     /* Initialize variable arguments */
+
         /* read each argument after cnt, update crc, and send the data */
-        for(uint8_t index=0;index<cnt;index++){
+        for(uint8_t i=0;i<cnt;i++)
+        {
             uint8_t data = va_arg(marker, int);
-            crc_update(data);
-            write(data);
+            port_->write(&data, 1);
+            crc_update(&data,1);
         }
-        va_end( marker );              /* Reset variable arguments */
+        va_end( marker );
         /* send the crc to the Roboclaw and check for return value */
-        port_->write((uint8_t *) &crc_, 2);
-        if(read()==0xFF)
+        uint8_t crc_to_send[2] = {crc_,crc_ >> 8};
+
+        if(port_->write(crc_to_send, 2) != 2)
+        {
+            continue;
+        }
+
+        uint8_t buffer[2] = {0,0};
+        size_t n_read = port_->read(buffer,2);
+
+        uint16_t crc_read = buffer[0] << 8 | buffer[1];
+
+        if(crc_read==0xFF)
             return true;
     }while(trys--);
+
     return false;
 }
 
@@ -159,284 +129,119 @@ bool Roboclaw::write_n(uint8_t cnt, ... )
  */
 bool Roboclaw::read_n(uint8_t cnt,uint8_t address,uint8_t cmd,...)
 {
-    uint32_t value=0;
     uint8_t trys=MAXRETRY;
-    int16_t data;
-    do{
-        flush();
-
-        data=0;
+    do
+    {
+        port_->flushInput();
+        // Reset the crc checksum
         crc_clear();
-        write(address);
-        crc_update(address);
-        write(cmd);
-        crc_update(cmd);
+
+        // Build the command to be sent
+        uint8_t command[2] = {address,cmd};
+        port_->write(command,2);
+
+        // Update the Crc with the command we just sent
+        crc_update(command,2);
 
         /* read each four byte output of the command into a uint32_t */
         va_list marker;
         va_start( marker, cmd );     /* Initialize variable arguments. */
-        for(uint8_t index=0;index<cnt;index++){
+        for(uint8_t i=0;i<cnt;i++)
+        {
             /* retrieve the pointer to the next uint32_t to be updated */
             uint32_t *ptr = va_arg(marker, uint32_t *);
 
-            if(data!=-1){
-                data = read();
-                crc_update(data);
-                value=(uint32_t)data<<24;
-            }
-            else{
-                break;
+            uint8_t buffer[4] = {0,0,0,0};
+
+            size_t n_read = port_->read(buffer,4);
+
+            if(n_read != 4)
+            {
+                return 0;
             }
 
-            if(data!=-1){
-                data = read();
-                crc_update(data);
-                value|=(uint32_t)data<<16;
-            }
-            else{
-                break;
-            }
+            // Update the Crc with the response we just read, minus the 2 crc bytes :)
+            crc_update(buffer,4);
 
-            if(data!=-1){
-                data = read();
-                crc_update(data);
-                value|=(uint32_t)data<<8;
-            }
-            else{
-                break;
-            }
+            *ptr = buffer[0]<<24 | buffer[1]<<16 | buffer[2]<<8 | buffer[3];
 
-            if(data!=-1){
-                data = read();
-                crc_update(data);
-                value|=(uint32_t)data;
-            }
-            else{
-                break;
-            }
-
-            *ptr = value;
         }
-        va_end( marker );              /* Reset variable arguments.      */
 
-        /* read crc from the roboclaw and double check with our calculation */
-        if(data!=-1){
-            uint16_t ccrc;
-            data = read();
-            if(data!=-1){
-                ccrc = data << 8;
-                data = read();
-                if(data!=-1){
-                    ccrc |= data;
-                    return crc_get()==ccrc;
-                }
-            }
+        uint8_t buffer[2] = {0,0};
+        size_t n_read = port_->read(buffer,2);
+
+        uint16_t crc_read = buffer[0] << 8 | buffer[1];
+
+        if(crc_read == crc_get())
+        {
+            return true;
         }
+
     }while(trys--);
 
     return false;
-}
-
-/*
- * reads a one byte register returning its contents or false in error
- */
-uint8_t Roboclaw::read1(uint8_t address,uint8_t cmd,bool *valid)
-{
-    if(valid)
-        *valid = false;
-
-    uint8_t value=0;
-    uint8_t trys=MAXRETRY;
-    /* data is a signed int to allow for -1 assignment in error */
-    int16_t data;
-    do{
-        flush();
-
-        crc_clear();
-        write(address);
-        crc_update(address);
-        write(cmd);
-        crc_update(cmd);
-
-        data = read();
-        crc_update(data);
-        value=data;
-
-        if(data!=-1){
-            uint16_t ccrc;
-            data = read();
-            if(data!=-1){
-                ccrc = data << 8;
-                data = read();
-                if(data!=-1){
-                    ccrc |= data;
-                    if(crc_get()==ccrc){
-                        *valid = true;
-                        return value;
-                    }
-                }
-            }
-        }
-    }while(trys--);
-
-    return false;
-}
-
-/*
- * reads a two byte register, returning its contents or false in error
- */
-uint16_t Roboclaw::read2(uint8_t address,uint8_t cmd,bool *valid)
-{
-    if(valid)
-        *valid = false;
-
-    uint16_t value=0;
-    uint8_t trys=MAXRETRY;
-    int16_t data;
-    do{
-        flush();
-
-        crc_clear();
-        write(address);
-        crc_update(address);
-        write(cmd);
-        crc_update(cmd);
-
-        data = read();
-        crc_update(data);
-        value=(uint16_t)data<<8;
-
-        if(data!=-1){
-            data = read();
-            crc_update(data);
-            value|=(uint16_t)data;
-        }
-
-        if(data!=-1){
-            uint16_t ccrc;
-            data = read();
-            if(data!=-1){
-                ccrc = data << 8;
-                data = read();
-                if(data!=-1){
-                    ccrc |= data;
-                    if(crc_get()==ccrc){
-                        *valid = true;
-                        return value;
-                    }
-                }
-            }
-        }
-    }while(trys--);
-
-    return false;
-}
-
-/*
- * reads a four byte register
- *      returns register contents or false in error
- */
-uint32_t Roboclaw::read4(uint8_t address, uint8_t cmd, bool *valid)
-{
-    if(valid)
-        *valid = false;
-
-    uint16_t value=0;
-    uint8_t trys=MAXRETRY;
-    int16_t data;
-    do{
-        flush();
-
-        crc_clear();
-        write(address);
-        crc_update(address);
-        write(cmd);
-        crc_update(cmd);
-
-        data = read();
-        crc_update(data);
-        value=(uint16_t)data<<8;
-
-        if(data!=-1){
-            data = read();
-            crc_update(data);
-            value|=(uint16_t)data;
-        }
-
-        if(data!=-1){
-            uint16_t ccrc;
-            data = read();
-            if(data!=-1){
-                ccrc = data << 8;
-                data = read();
-                if(data!=-1){
-                    ccrc |= data;
-                    if(crc_get()==ccrc){
-                        *valid = true;
-                        return value;
-                    }
-                }
-            }
-        }
-    }while(trys--);
-
-    return false;
-}
-
-/*
- * Reads a four byte register along with the roboclaw's status
- * returns the value of the register or false in the event of a timeout or error
- * updates value of status pointer argument
- * indicates success/failure through the valid argument
- */
-uint32_t Roboclaw::read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *valid)
-{
-    flush();
-    uint8_t command[2] = {address,cmd};
-    port_->write(command,2);
-
-    uint8_t buffer[7] = {0,0,0,0,0,0,0};
-    size_t n_read = port_->read(buffer,7);
-
-    if(valid)
-    {
-        *valid = static_cast<bool>(buffer[6]);
-    }
-
-    int32_t data_ = buffer[0]<<24|buffer[1]<<16|buffer[2]<<8|buffer[3];
-
-    if(status)
-    {
-        *status = buffer[4];
-    }
-
-    return data_;
     //
-    // if(valid)
-    //     *valid = false;
-    //
-    // uint32_t value=0;
+    // int32_t value=0;
     // uint8_t trys=MAXRETRY;
     // int16_t data;
     // do{
-    //     flush();
+    //     port_->flushInput();
     //
+    //     data=0;
     //     crc_clear();
     //     write(address);
     //     crc_update(address);
     //     write(cmd);
     //     crc_update(cmd);
     //
-    //     data = read();
-    //     crc_update(data);
-    //     value=(uint16_t)data<<8;
+    //     /* read each four byte output of the command into a uint32_t */
+    //     va_list marker;
+    //     va_start( marker, cmd );     /* Initialize variable arguments. */
+    //     for(uint8_t i=0;i<cnt;i++){
+    //         /* retrieve the pointer to the next uint32_t to be updated */
+    //         uint32_t *ptr = va_arg(marker, uint32_t *);
     //
-    //     if(data!=-1){
-    //         data = read();
-    //         crc_update(data);
-    //         value|=(uint16_t)data;
+    //         if(data!=-1){
+    //             data = read();
+    //             crc_update(data);
+    //             value=(uint32_t)data<<24;
+    //         }
+    //         else{
+    //             break;
+    //         }
+    //
+    //         if(data!=-1){
+    //             data = read();
+    //             crc_update(data);
+    //             value|=(uint32_t)data<<16;
+    //         }
+    //         else{
+    //             break;
+    //         }
+    //
+    //         if(data!=-1){
+    //             data = read();
+    //             crc_update(data);
+    //             value|=(uint32_t)data<<8;
+    //         }
+    //         else{
+    //             break;
+    //         }
+    //
+    //         if(data!=-1){
+    //             data = read();
+    //             crc_update(data);
+    //             value|=(uint32_t)data;
+    //         }
+    //         else{
+    //             break;
+    //         }
+    //
+    //         *ptr = value;
     //     }
+    //     va_end( marker );              /* Reset variable arguments.      */
     //
+    //     /* read crc from the roboclaw and double check with our calculation */
     //     if(data!=-1){
     //         uint16_t ccrc;
     //         data = read();
@@ -445,16 +250,246 @@ uint32_t Roboclaw::read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *
     //             data = read();
     //             if(data!=-1){
     //                 ccrc |= data;
-    //                 if(crc_get()==ccrc){
-    //                     *valid = true;
-    //                     return value;
-    //                 }
+    //                 return crc_get()==ccrc;
     //             }
     //         }
     //     }
     // }while(trys--);
     //
     // return false;
+}
+
+/*
+ * reads a one byte register returning its contents or false in error
+ */
+uint8_t Roboclaw::read1(uint8_t address,uint8_t cmd,bool *valid)
+{
+    uint8_t trys=MAXRETRY;
+    do
+    {
+        port_->flushInput();
+        // Reset the crc checksum
+        crc_clear();
+
+        // Build the command to be sent
+        uint8_t command[2] = {address,cmd};
+        port_->write(command,2);
+
+        // Update the Crc with the command we just sent
+        crc_update(command,2);
+
+        uint8_t buffer[3] = {0,0,0};
+
+        size_t n_read = port_->read(buffer,3);
+
+        if(n_read != 3)
+        {
+            return 0;
+        }
+
+        // Update the Crc with the response we just read, minus the 2 crc bytes :)
+        crc_update(buffer,1);
+
+        uint8_t data_ = buffer[0];
+
+        uint16_t crc_read = buffer[1] << 8 | buffer[2];
+
+        if(crc_read == crc_get())
+        {
+            if(valid)
+            {
+                *valid = true;
+            }
+            return data_;
+        }
+        else
+        {
+            if(valid)
+            {
+                *valid = false;
+            }
+        }
+
+    }while(trys--);
+
+    return 0;
+}
+
+/*
+ * reads a two byte register, returning its contents or false in error
+ */
+uint16_t Roboclaw::read2(uint8_t address,uint8_t cmd,bool *valid)
+{
+    uint8_t trys=MAXRETRY;
+    do
+    {
+        port_->flushInput();
+        // Reset the crc checksum
+        crc_clear();
+
+        // Build the command to be sent
+        uint8_t command[2] = {address,cmd};
+        port_->write(command,2);
+
+        // Update the Crc with the command we just sent
+        crc_update(command,2);
+
+        uint8_t buffer[4] = {0,0,0,0};
+
+        size_t n_read = port_->read(buffer,4);
+
+        if(n_read != 4)
+        {
+            return 0;
+        }
+
+        // Update the Crc with the response we just read, minus the 2 crc bytes :)
+        crc_update(buffer,2);
+
+        int16_t data_ = buffer[0]<<8 | buffer[1];
+
+        uint16_t crc_read = buffer[2] << 8 | buffer[3];
+
+        if(crc_read == crc_get())
+        {
+            if(valid)
+            {
+                *valid = true;
+            }
+            return data_;
+        }
+        else
+        {
+            if(valid)
+            {
+                *valid = false;
+            }
+        }
+
+    }while(trys--);
+
+    return 0;
+}
+
+/*
+ * reads a four byte register
+ *      returns register contents or false in error
+ */
+int32_t Roboclaw::read4(uint8_t address, uint8_t cmd, bool *valid)
+{
+    uint8_t trys=MAXRETRY;
+    do
+    {
+        port_->flushInput();
+        // Reset the crc checksum
+        crc_clear();
+
+        // Build the command to be sent
+        uint8_t command[2] = {address,cmd};
+        port_->write(command,2);
+
+        // Update the Crc with the command we just sent
+        crc_update(command,2);
+
+        uint8_t buffer[6] = {0,0,0,0,0,0};
+
+        size_t n_read = port_->read(buffer,6);
+
+        if(n_read != 6)
+        {
+            return 0;
+        }
+
+        // Update the Crc with the response we just read, minus the 2 crc bytes :)
+        crc_update(buffer,4);
+
+        uint32_t data_ = buffer[0]<<24 | buffer[1]<<16 | buffer[2]<<8 | buffer[3];
+
+        uint16_t crc_read = buffer[4] << 8 | buffer[5];
+
+        if(crc_read == crc_get())
+        {
+            if(valid)
+            {
+                *valid = true;
+            }
+            return data_;
+        }
+        else
+        {
+            if(valid)
+            {
+                *valid = false;
+            }
+        }
+
+    }while(trys--);
+
+    return 0;
+}
+
+/*
+ * Reads a four byte register along with the roboclaw's status
+ * returns the value of the register or false in the event of a timeout or error
+ * updates value of status pointer argument
+ * indicates success/failure through the valid argument
+ */
+int32_t Roboclaw::read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *valid)
+{
+    uint8_t trys=MAXRETRY;
+    do
+    {
+        port_->flushInput();
+        // Reset the crc checksum
+        crc_clear();
+
+        // Build the command to be sent
+        uint8_t command[2] = {address,cmd};
+        port_->write(command,2);
+
+        // Update the Crc with the command we just sent
+        crc_update(command,2);
+
+        uint8_t buffer[7] = {0,0,0,0,0,0,0};
+
+        size_t n_read = port_->read(buffer,7);
+
+        if(n_read != 7)
+        {
+            return 0;
+        }
+
+        // Update the Crc with the response we just read, minus the 2 crc bytes :)
+        crc_update(buffer,5);
+
+        int32_t data_ = buffer[0]<<24 | buffer[1]<<16 | buffer[2]<<8 | buffer[3];
+
+        if(status)
+        {
+            *status = buffer[4];
+        }
+
+        uint16_t crc_read = buffer[5] << 8 | buffer[6];
+
+        if(crc_read == crc_get())
+        {
+            if(valid)
+            {
+                *valid = true;
+            }
+            return data_;
+        }
+        else
+        {
+            if(valid)
+            {
+                *valid = false;
+            }
+        }
+
+    }while(trys--);
+
+    return 0;
 }
 
 /************************************************************
@@ -516,19 +551,19 @@ bool Roboclaw::LeftRightMixed(uint8_t address, uint8_t speed){
     return write_n(3,address,MIXEDLR,speed);
 }
 
-uint32_t Roboclaw::ReadEncM1(uint8_t address, uint8_t *status,bool *valid){
+int32_t Roboclaw::ReadEncM1(uint8_t address, uint8_t *status,bool *valid){
     return read4_1(address,GETM1ENC,status,valid);
 }
 
-uint32_t Roboclaw::ReadEncM2(uint8_t address, uint8_t *status,bool *valid){
+int32_t Roboclaw::ReadEncM2(uint8_t address, uint8_t *status,bool *valid){
     return read4_1(address,GETM2ENC,status,valid);
 }
 
-uint32_t Roboclaw::ReadSpeedM1(uint8_t address, uint8_t *status,bool *valid){
+int32_t Roboclaw::ReadSpeedM1(uint8_t address, uint8_t *status,bool *valid){
     return read4_1(address,GETM1SPEED,status,valid);
 }
 
-uint32_t Roboclaw::ReadSpeedM2(uint8_t address, uint8_t *status,bool *valid){
+int32_t Roboclaw::ReadSpeedM2(uint8_t address, uint8_t *status,bool *valid){
     return read4_1(address,GETM2SPEED,status,valid);
 }
 
@@ -536,44 +571,39 @@ bool Roboclaw::ResetEncoders(uint8_t address){
     return write_n(2,address,RESETENC);
 }
 
-bool Roboclaw::ReadVersion(uint8_t address,char *version){
-    uint8_t data;
+bool Roboclaw::ReadVersion(uint8_t address,std::string& version){
     uint8_t trys=MAXRETRY;
-    do{
-        flush();
-
-        data = 0;
-
+    do
+    {
+        port_->flushInput();
+        // Reset the crc checksum
         crc_clear();
-        write(address);
-        crc_update(address);
-        write(GETVERSION);
-        crc_update(GETVERSION);
 
-        uint8_t i;
-        for(i=0;i<48;i++){
-            if(data!=-1){
-                data=read();
-                version[i] = data;
-                crc_update(version[i]);
-                if(version[i]==0){
-                    uint16_t ccrc;
-                    data = read();
-                    if(data!=-1){
-                        ccrc = data << 8;
-                        data = read();
-                        if(data!=-1){
-                            ccrc |= data;
-                            return crc_get()==ccrc;
-                        }
-                    }
-                    break;
-                }
-            }
-            else{
-                break;
-            }
+        // Build the command to be sent
+        uint8_t command[2] = {address,GETVERSION};
+        port_->write(command,2);
+        crc_update(command,2);
+
+        uint8_t c = 0;
+        std::string s_out;
+        do{
+            port_->read(&c,1);
+            crc_update(&c,1);
+            s_out += c;
+        }while(c != '\0');
+
+        uint8_t crc_l,crc_r;
+        port_->read(&crc_l,1);
+        port_->read(&crc_r,1);
+
+        uint16_t crc_read = crc_l << 8 | crc_r;
+
+        if(crc_read == crc_get())
+        {
+            version = s_out;
+            return true;
         }
+
     }while(trys--);
 
     return false;
@@ -617,11 +647,11 @@ bool Roboclaw::SetM2VelocityPID(uint8_t address, float kp_fp, float ki_fp, float
     return write_n(18,address,SETM2PID,SetDWORDval(kd),SetDWORDval(kp),SetDWORDval(ki),SetDWORDval(qpps));
 }
 
-uint32_t Roboclaw::ReadISpeedM1(uint8_t address,uint8_t *status,bool *valid){
+int32_t Roboclaw::ReadISpeedM1(uint8_t address,uint8_t *status,bool *valid){
     return read4_1(address,GETM1ISPEED,status,valid);
 }
 
-uint32_t Roboclaw::ReadISpeedM2(uint8_t address,uint8_t *status,bool *valid){
+int32_t Roboclaw::ReadISpeedM2(uint8_t address,uint8_t *status,bool *valid){
     return read4_1(address,GETM2ISPEED,status,valid);
 }
 
@@ -637,50 +667,50 @@ bool Roboclaw::DutyM1M2(uint8_t address, uint16_t duty1, uint16_t duty2){
     return write_n(6,address,MIXEDDUTY,SetWORDval(duty1),SetWORDval(duty2));
 }
 
-bool Roboclaw::SpeedM1(uint8_t address, uint32_t speed){
+bool Roboclaw::SpeedM1(uint8_t address, int32_t speed){
     return write_n(6,address,M1SPEED,SetDWORDval(speed));
 }
 
-bool Roboclaw::SpeedM2(uint8_t address, uint32_t speed){
+bool Roboclaw::SpeedM2(uint8_t address, int32_t speed){
     return write_n(6,address,M2SPEED,SetDWORDval(speed));
 }
 
-bool Roboclaw::SpeedM1M2(uint8_t address, uint32_t speed1, uint32_t speed2){
+bool Roboclaw::SpeedM1M2(uint8_t address, int32_t speed1, int32_t speed2){
     return write_n(10,address,MIXEDSPEED,SetDWORDval(speed1),SetDWORDval(speed2));
 }
 
-bool Roboclaw::SpeedAccelM1(uint8_t address, uint32_t accel, uint32_t speed){
+bool Roboclaw::SpeedAccelM1(uint8_t address, uint32_t accel, int32_t speed){
     return write_n(10,address,M1SPEEDACCEL,SetDWORDval(accel),SetDWORDval(speed));
 }
 
-bool Roboclaw::SpeedAccelM2(uint8_t address, uint32_t accel, uint32_t speed){
+bool Roboclaw::SpeedAccelM2(uint8_t address, uint32_t accel, int32_t speed){
     return write_n(10,address,M2SPEEDACCEL,SetDWORDval(accel),SetDWORDval(speed));
 }
-bool Roboclaw::SpeedAccelM1M2(uint8_t address, uint32_t accel, uint32_t speed1, uint32_t speed2){
+bool Roboclaw::SpeedAccelM1M2(uint8_t address, uint32_t accel, int32_t speed1, int32_t speed2){
     return write_n(14,address,MIXEDSPEEDACCEL,SetDWORDval(accel),SetDWORDval(speed1),SetDWORDval(speed2));
 }
 
-bool Roboclaw::SpeedDistanceM1(uint8_t address, uint32_t speed, uint32_t distance, uint8_t flag){
+bool Roboclaw::SpeedDistanceM1(uint8_t address, int32_t speed, uint32_t distance, uint8_t flag){
     return write_n(11,address,M1SPEEDDIST,SetDWORDval(speed),SetDWORDval(distance),flag);
 }
 
-bool Roboclaw::SpeedDistanceM2(uint8_t address, uint32_t speed, uint32_t distance, uint8_t flag){
+bool Roboclaw::SpeedDistanceM2(uint8_t address, int32_t speed, uint32_t distance, uint8_t flag){
     return write_n(11,address,M2SPEEDDIST,SetDWORDval(speed),SetDWORDval(distance),flag);
 }
 
-bool Roboclaw::SpeedDistanceM1M2(uint8_t address, uint32_t speed1, uint32_t distance1, uint32_t speed2, uint32_t distance2, uint8_t flag){
+bool Roboclaw::SpeedDistanceM1M2(uint8_t address, int32_t speed1, uint32_t distance1, int32_t speed2, uint32_t distance2, uint8_t flag){
     return write_n(19,address,MIXEDSPEEDDIST,SetDWORDval(speed1),SetDWORDval(distance1),SetDWORDval(speed2),SetDWORDval(distance2),flag);
 }
 
-bool Roboclaw::SpeedAccelDistanceM1(uint8_t address, uint32_t accel, uint32_t speed, uint32_t distance, uint8_t flag){
+bool Roboclaw::SpeedAccelDistanceM1(uint8_t address, uint32_t accel, int32_t speed, uint32_t distance, uint8_t flag){
     return write_n(15,address,M1SPEEDACCELDIST,SetDWORDval(accel),SetDWORDval(speed),SetDWORDval(distance),flag);
 }
 
-bool Roboclaw::SpeedAccelDistanceM2(uint8_t address, uint32_t accel, uint32_t speed, uint32_t distance, uint8_t flag){
+bool Roboclaw::SpeedAccelDistanceM2(uint8_t address, uint32_t accel, int32_t speed, uint32_t distance, uint8_t flag){
     return write_n(15,address,M2SPEEDACCELDIST,SetDWORDval(accel),SetDWORDval(speed),SetDWORDval(distance),flag);
 }
 
-bool Roboclaw::SpeedAccelDistanceM1M2(uint8_t address, uint32_t accel, uint32_t speed1, uint32_t distance1, uint32_t speed2, uint32_t distance2, uint8_t flag){
+bool Roboclaw::SpeedAccelDistanceM1M2(uint8_t address, uint32_t accel, int32_t speed1, uint32_t distance1, int32_t speed2, uint32_t distance2, uint8_t flag){
     return write_n(23,address,MIXEDSPEEDACCELDIST,SetDWORDval(accel),SetDWORDval(speed1),SetDWORDval(distance1),SetDWORDval(speed2),SetDWORDval(distance2),flag);
 }
 
@@ -696,7 +726,7 @@ bool Roboclaw::ReadBuffers(uint8_t address, uint8_t &depth1, uint8_t &depth2){
 
 bool Roboclaw::ReadPWMs(uint8_t address, int16_t &pwm1, int16_t &pwm2){
     bool valid;
-    uint32_t value = read4(address,GETPWMS,&valid);
+    int32_t value = read4(address,GETPWMS,&valid);
     if(valid){
         pwm1 = value>>16;
         pwm2 = value&0xFFFF;
@@ -706,7 +736,7 @@ bool Roboclaw::ReadPWMs(uint8_t address, int16_t &pwm1, int16_t &pwm2){
 
 bool Roboclaw::ReadCurrents(uint8_t address, int16_t &current1, int16_t &current2){
     bool valid;
-    uint32_t value = read4(address,GETCURRENTS,&valid);
+    int32_t value = read4(address,GETCURRENTS,&valid);
     if(valid){
         current1 = value>>16;
         current2 = value&0xFFFF;
@@ -714,11 +744,11 @@ bool Roboclaw::ReadCurrents(uint8_t address, int16_t &current1, int16_t &current
     return valid;
 }
 
-bool Roboclaw::SpeedAccelM1M2_2(uint8_t address, uint32_t accel1, uint32_t speed1, uint32_t accel2, uint32_t speed2){
+bool Roboclaw::SpeedAccelM1M2_2(uint8_t address, uint32_t accel1, int32_t speed1, uint32_t accel2, int32_t speed2){
     return write_n(18,address,MIXEDSPEED2ACCEL,SetDWORDval(accel1),SetDWORDval(speed1),SetDWORDval(accel2),SetDWORDval(speed2));
 }
 
-bool Roboclaw::SpeedAccelDistanceM1M2_2(uint8_t address, uint32_t accel1, uint32_t speed1, uint32_t distance1, uint32_t accel2, uint32_t speed2, uint32_t distance2, uint8_t flag){
+bool Roboclaw::SpeedAccelDistanceM1M2_2(uint8_t address, uint32_t accel1, int32_t speed1, uint32_t distance1, uint32_t accel2, int32_t speed2, uint32_t distance2, uint8_t flag){
     return write_n(27,address,MIXEDSPEED2ACCELDIST,SetDWORDval(accel1),SetDWORDval(speed1),SetDWORDval(distance1),SetDWORDval(accel2),SetDWORDval(speed2),SetDWORDval(distance2),flag);
 }
 
@@ -762,7 +792,7 @@ bool Roboclaw::SetLogicVoltages(uint8_t address,uint16_t min,uint16_t max){
 
 bool Roboclaw::ReadMinMaxMainVoltages(uint8_t address,uint16_t &min,uint16_t &max){
     bool valid;
-    uint32_t value = read4(address,GETMINMAXMAINVOLTAGES,&valid);
+    int32_t value = read4(address,GETMINMAXMAINVOLTAGES,&valid);
     if(valid){
         min = value>>16;
         max = value&0xFFFF;
@@ -772,7 +802,7 @@ bool Roboclaw::ReadMinMaxMainVoltages(uint8_t address,uint16_t &min,uint16_t &ma
 
 bool Roboclaw::ReadMinMaxLogicVoltages(uint8_t address,uint16_t &min,uint16_t &max){
     bool valid;
-    uint32_t value = read4(address,GETMINMAXLOGICVOLTAGES,&valid);
+    int32_t value = read4(address,GETMINMAXLOGICVOLTAGES,&valid);
     if(valid){
         min = value>>16;
         max = value&0xFFFF;
@@ -812,15 +842,15 @@ bool Roboclaw::ReadM2PositionPID(uint8_t address,float &Kp_fp,float &Ki_fp,float
     return valid;
 }
 
-bool Roboclaw::SpeedAccelDeccelPositionM1(uint8_t address,uint32_t accel,uint32_t speed,uint32_t deccel,uint32_t position,uint8_t flag){
+bool Roboclaw::SpeedAccelDeccelPositionM1(uint8_t address,uint32_t accel,int32_t speed,uint32_t deccel,uint32_t position,uint8_t flag){
     return write_n(19,address,M1SPEEDACCELDECCELPOS,SetDWORDval(accel),SetDWORDval(speed),SetDWORDval(deccel),SetDWORDval(position),flag);
 }
 
-bool Roboclaw::SpeedAccelDeccelPositionM2(uint8_t address,uint32_t accel,uint32_t speed,uint32_t deccel,uint32_t position,uint8_t flag){
+bool Roboclaw::SpeedAccelDeccelPositionM2(uint8_t address,uint32_t accel,int32_t speed,uint32_t deccel,uint32_t position,uint8_t flag){
     return write_n(19,address,M2SPEEDACCELDECCELPOS,SetDWORDval(accel),SetDWORDval(speed),SetDWORDval(deccel),SetDWORDval(position),flag);
 }
 
-bool Roboclaw::SpeedAccelDeccelPositionM1M2(uint8_t address,uint32_t accel1,uint32_t speed1,uint32_t deccel1,uint32_t position1,uint32_t accel2,uint32_t speed2,uint32_t deccel2,uint32_t position2,uint8_t flag){
+bool Roboclaw::SpeedAccelDeccelPositionM1M2(uint8_t address,uint32_t accel1,int32_t speed1,uint32_t deccel1,uint32_t position1,uint32_t accel2,int32_t speed2,uint32_t deccel2,uint32_t position2,uint8_t flag){
     return write_n(35,address,MIXEDSPEEDACCELDECCELPOS,SetDWORDval(accel1),SetDWORDval(speed1),SetDWORDval(deccel1),SetDWORDval(position1),SetDWORDval(accel2),SetDWORDval(speed2),SetDWORDval(deccel2),SetDWORDval(position2),flag);
 }
 
@@ -837,56 +867,56 @@ bool Roboclaw::SetPinFunctions(uint8_t address, uint8_t S3mode, uint8_t S4mode, 
 }
 
 bool Roboclaw::GetPinFunctions(uint8_t address, uint8_t &S3mode, uint8_t &S4mode, uint8_t &S5mode){
-    uint8_t crc;
-    bool valid = false;
-    uint8_t val1,val2,val3;
-    uint8_t trys=MAXRETRY;
-    int16_t data;
-    do{
-        flush();
-
-        crc_clear();
-        write(address);
-        crc_update(address);
-        write(GETPINFUNCTIONS);
-        crc_update(GETPINFUNCTIONS);
-
-        data = read();
-        crc_update(data);
-        val1=data;
-
-        if(data!=-1){
-            data = read();
-            crc_update(data);
-            val2=data;
-        }
-
-        if(data!=-1){
-            data = read();
-            crc_update(data);
-            val3=data;
-        }
-
-        if(data!=-1){
-            uint16_t ccrc;
-            data = read();
-            if(data!=-1){
-                ccrc = data << 8;
-                data = read();
-                if(data!=-1){
-                    ccrc |= data;
-                    if(crc_get()==ccrc){
-                        S3mode = val1;
-                        S4mode = val2;
-                        S5mode = val3;
-                        return true;
-                    }
-                }
-            }
-        }
-    }while(trys--);
-
-    return false;
+    // uint8_t crc;
+    // bool valid = false;
+    // uint8_t val1,val2,val3;
+    // uint8_t trys=MAXRETRY;
+    // int16_t data;
+    // do{
+    //     port_->flushInput();
+    //
+    //     crc_clear();
+    //     write(address);
+    //     crc_update(address);
+    //     write(GETPINFUNCTIONS);
+    //     crc_update(GETPINFUNCTIONS);
+    //
+    //     data = read();
+    //     crc_update(data);
+    //     val1=data;
+    //
+    //     if(data!=-1){
+    //         data = read();
+    //         crc_update(data);
+    //         val2=data;
+    //     }
+    //
+    //     if(data!=-1){
+    //         data = read();
+    //         crc_update(data);
+    //         val3=data;
+    //     }
+    //
+    //     if(data!=-1){
+    //         uint16_t ccrc;
+    //         data = read();
+    //         if(data!=-1){
+    //             ccrc = data << 8;
+    //             data = read();
+    //             if(data!=-1){
+    //                 ccrc |= data;
+    //                 if(crc_get()==ccrc){
+    //                     S3mode = val1;
+    //                     S4mode = val2;
+    //                     S5mode = val3;
+    //                     return true;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }while(trys--);
+    //
+    // return false;
 }
 
 bool Roboclaw::SetDeadBand(uint8_t address, uint8_t Min, uint8_t Max){
