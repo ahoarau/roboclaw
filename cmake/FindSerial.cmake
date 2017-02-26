@@ -15,7 +15,6 @@ find_library(serial_LIBRARY NAMES serial
 )
 
 if(serial_INCLUDE_DIR AND serial_LIBRARY)
-   set(serial_FOUND TRUE)
    set(serial_LIBRARIES ${serial_LIBRARY})
    set(serial_INCLUDE_DIRS ${serial_INCLUDE_DIR})
 
@@ -23,8 +22,12 @@ if(serial_INCLUDE_DIR AND serial_LIBRARY)
        list(APPEND ${serial_LIBRARIES} rt)
    endif()
 
-else()
-   set(serial_FOUND FALSE)
 endif()
+
+include(FindPackageHandleStandardArgs)
+# handle the QUIETLY and REQUIRED arguments and set serial_FOUND to TRUE
+# if all listed variables are TRUE
+find_package_handle_standard_args(serial  DEFAULT_MSG
+                        serial_LIBRARY serial_INCLUDE_DIR)
 
 mark_as_advanced(serial_INCLUDE_DIR serial_INCLUDE_DIRS serial_LIBRARIES serial_LIBRARY)
