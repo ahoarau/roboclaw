@@ -6,6 +6,10 @@ set(CMAKE_MODULE_PATH
     ${CMAKE_MODULE_PATH}
 )
 
+if(NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE Release)
+endif()
+
 find_package(serial REQUIRED)
 
 include_directories(
@@ -29,7 +33,7 @@ install(TARGETS ${PROJECT_NAME}
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
-    DESTINATION include
+    DESTINATION include/${PROJECT_NAME}/
     FILES_MATCHING PATTERN "*.h"
     PATTERN ".svn" EXCLUDE
 )
