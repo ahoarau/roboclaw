@@ -7,8 +7,9 @@
  */
 
 #include <roboclaw/roboclaw.h>
-#include <iostream>
-#include <algorithm>
+#include <serial/serial.h>
+
+static serial::Serial serial_port;
 /*
  * Macros taken directly from Arduino Library
  */
@@ -22,26 +23,18 @@
 Roboclaw::Roboclaw(std::string port, uint32_t baudrate)
 {
     /* initialize pointer to a new Serial port object */
-    port_ = new serial::Serial(port, baudrate, serial::Timeout::simpleTimeout(1000));
+    serial_port.setPort(port);
+    serial_port.setBaudrate(baudrate);
+    serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
+    serial_port.setTimeout(timeout);
 }
 
-bool Roboclaw::Open()
-{
-    try
-    {
-    	port_->open();
-    }
-    catch(serial::SerialException& e){}
-
-    return port_->isOpen();
-}
 /*
  * Destructor closes serial port and frees the associated memory
  */
 Roboclaw::~Roboclaw()
 {
-    port_->close();
-    delete port_;
+    serial_port.close();
 }
 
 /*
@@ -91,7 +84,7 @@ bool Roboclaw::write_n(uint8_t cnt, ... )
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
 
         crc_clear();
 
@@ -102,17 +95,17 @@ bool Roboclaw::write_n(uint8_t cnt, ... )
         for(uint8_t i=0;i<cnt;i++)
         {
             uint8_t data = va_arg(marker, int);
-            port_->write(&data, 1);
+            serial_port.write(&data, 1);
             crc_update(&data,1);
         }
         va_end( marker );
         /* send the crc to the Roboclaw and check for return value */
         uint8_t crc_to_send[2] = {crc_ >> 8 ,crc_ };
 
-        port_->write(crc_to_send, 2);
+        serial_port.write(crc_to_send, 2);
 
         uint8_t crc_read;
-        port_->read(&crc_read,1);
+        serial_port.read(&crc_read,1);
 
         if(crc_read==0xFF)
         {
@@ -132,13 +125,13 @@ bool Roboclaw::read_n(uint8_t cnt,uint8_t address,uint8_t cmd,...)
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
         // Reset the crc checksum
         crc_clear();
 
         // Build the command to be sent
         uint8_t command[2] = {address,cmd};
-        port_->write(command,2);
+        serial_port.write(command,2);
 
         // Update the Crc with the command we just sent
         crc_update(command,2);
@@ -153,7 +146,7 @@ bool Roboclaw::read_n(uint8_t cnt,uint8_t address,uint8_t cmd,...)
 
             uint8_t buffer[4] = {0,0,0,0};
 
-            size_t n_read = port_->read(buffer,4);
+            serial_port.read(buffer,4);
 
             // Update the Crc with the response we just read, minus the 2 crc bytes :)
             crc_update(buffer,4);
@@ -163,7 +156,7 @@ bool Roboclaw::read_n(uint8_t cnt,uint8_t address,uint8_t cmd,...)
         }
 
         uint8_t buffer[2] = {0,0};
-        size_t n_read = port_->read(buffer,2);
+        serial_port.read(buffer,2);
 
         uint16_t crc_read = buffer[0] << 8 | buffer[1];
 
@@ -185,20 +178,20 @@ uint8_t Roboclaw::read1(uint8_t address,uint8_t cmd,bool *valid)
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
         // Reset the crc checksum
         crc_clear();
 
         // Build the command to be sent
         uint8_t command[2] = {address,cmd};
-        port_->write(command,2);
+        serial_port.write(command,2);
 
         // Update the Crc with the command we just sent
         crc_update(command,2);
 
         uint8_t buffer[3] = {0,0,0};
 
-        size_t n_read = port_->read(buffer,3);
+        serial_port.read(buffer,3);
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,1);
@@ -236,20 +229,20 @@ uint16_t Roboclaw::read2(uint8_t address,uint8_t cmd,bool *valid)
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
         // Reset the crc checksum
         crc_clear();
 
         // Build the command to be sent
         uint8_t command[2] = {address,cmd};
-        port_->write(command,2);
+        serial_port.write(command,2);
 
         // Update the Crc with the command we just sent
         crc_update(command,2);
 
         uint8_t buffer[4] = {0,0,0,0};
 
-        size_t n_read = port_->read(buffer,4);
+        serial_port.read(buffer,4);
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,2);
@@ -288,20 +281,20 @@ int32_t Roboclaw::read4(uint8_t address, uint8_t cmd, bool *valid)
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
         // Reset the crc checksum
         crc_clear();
 
         // Build the command to be sent
         uint8_t command[2] = {address,cmd};
-        port_->write(command,2);
+        serial_port.write(command,2);
 
         // Update the Crc with the command we just sent
         crc_update(command,2);
 
         uint8_t buffer[6] = {0,0,0,0,0,0};
 
-        size_t n_read = port_->read(buffer,6);
+        serial_port.read(buffer,6);
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,4);
@@ -342,20 +335,20 @@ int32_t Roboclaw::read4_1(uint8_t address, uint8_t cmd, uint8_t *status, bool *v
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
         // Reset the crc checksum
         crc_clear();
 
         // Build the command to be sent
         uint8_t command[2] = {address,cmd};
-        port_->write(command,2);
+        serial_port.write(command,2);
 
         // Update the Crc with the command we just sent
         crc_update(command,2);
 
         uint8_t buffer[7] = {0,0,0,0,0,0,0};
 
-        size_t n_read = port_->read(buffer,7);
+        serial_port.read(buffer,7);
 
         // Update the Crc with the response we just read, minus the 2 crc bytes :)
         crc_update(buffer,5);
@@ -473,26 +466,26 @@ bool Roboclaw::ReadVersion(uint8_t address,std::string& version){
     uint8_t trys=MAXRETRY;
     do
     {
-        port_->flushInput();
+        serial_port.flushInput();
         // Reset the crc checksum
         crc_clear();
 
         // Build the command to be sent
         uint8_t command[2] = {address,GETVERSION};
-        port_->write(command,2);
+        serial_port.write(command,2);
         crc_update(command,2);
 
         uint8_t c = 0;
         std::string s_out;
         do{
-            port_->read(&c,1);
+            serial_port.read(&c,1);
             crc_update(&c,1);
             s_out += c;
         }while(c != '\0');
 
         uint8_t crc_l,crc_r;
-        port_->read(&crc_l,1);
-        port_->read(&crc_r,1);
+        serial_port.read(&crc_l,1);
+        serial_port.read(&crc_r,1);
 
         uint16_t crc_read = crc_l << 8 | crc_r;
 
@@ -771,7 +764,7 @@ bool Roboclaw::GetPinFunctions(uint8_t address, uint8_t &S3mode, uint8_t &S4mode
     // uint8_t trys=MAXRETRY;
     // int16_t data;
     // do{
-    //     port_->flushInput();
+    //     serial_port.flushInput();
     //
     //     crc_clear();
     //     write(address);

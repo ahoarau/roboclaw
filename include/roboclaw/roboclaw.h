@@ -9,10 +9,8 @@
 #ifndef ROBOCLAW_H
 #define ROBOCLAW_H
 
-#include <stdarg.h>
-#include <stdint.h>
-
-#include <serial/serial.h>
+#include <cstdint>
+#include <string>
 
 class Roboclaw
 {
@@ -21,7 +19,6 @@ class Roboclaw
          * initializes serial port with specified file and baudrate
          */
 		Roboclaw(std::string port, uint32_t baudrate);	/* ack option only available on 3.1.8 and newer firmware */
-		bool Open();
         /*
          * closes serial port and frees the associated memory
          */
@@ -184,11 +181,6 @@ class Roboclaw
 		 * returns the register's contents upon success
 		 */
 		uint8_t read1(uint8_t address,uint8_t cmd,bool *valid);
-
-        /*
-         * pointer to the serial port used for communication with the roboclaw
-         */
-        serial::Serial * port_;
 
         /*
          * tracks and update the crc calculation
