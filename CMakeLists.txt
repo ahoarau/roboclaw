@@ -1,41 +1,35 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(roboclaw)
 
-set(CMAKE_BUILD_TYPE Release)
-
-find_package(catkin REQUIRED COMPONENTS
-    serial
+set(CMAKE_MODULE_PATH
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake
+    ${CMAKE_MODULE_PATH}
 )
 
-catkin_package(
-    INCLUDE_DIRS include
-    LIBRARIES ${PROJECT_NAME}
-    CATKIN_DEPENDS serial
-    #DEPENDS system_lib
-)
+find_package(serial REQUIRED)
 
-include_directories(include
-    ${catkin_INCLUDE_DIRS}
-    include/roboclaw
+include_directories(
+    ${serial_INCLUDE_DIRS}
+    include
 )
 
 add_library(${PROJECT_NAME}
     src/${PROJECT_NAME}/roboclaw.cpp
 )
 
-target_link_libraries(${PROJECT_NAME} ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${serial_LIBRARIES})
 
 add_subdirectory(tests)
 
 
 install(TARGETS ${PROJECT_NAME}
-    ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-    RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    ARCHIVE DESTINATION lib
+    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION bin
 )
 
 install(DIRECTORY include/${PROJECT_NAME}/
-    DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+    DESTINATION include
     FILES_MATCHING PATTERN "*.h"
     PATTERN ".svn" EXCLUDE
 )
