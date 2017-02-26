@@ -71,7 +71,7 @@ void Roboclaw::crc_update(uint8_t * packet, uint32_t nBytes)
  * this is not necessary as private methods can directly access the crc_ attribute,
  *      but it is being kept for now to keep the original Arduino code intact
  */
-uint16_t& Roboclaw::crc_get()
+const uint16_t& Roboclaw::crc_get()
 {
     return crc_;
 }
@@ -758,56 +758,46 @@ bool Roboclaw::SetPinFunctions(uint8_t address, uint8_t S3mode, uint8_t S4mode, 
 }
 
 bool Roboclaw::GetPinFunctions(uint8_t address, uint8_t &S3mode, uint8_t &S4mode, uint8_t &S5mode){
-    // uint8_t crc;
-    // bool valid = false;
-    // uint8_t val1,val2,val3;
-    // uint8_t trys=MAXRETRY;
-    // int16_t data;
-    // do{
-    //     serial_port.flushInput();
-    //
-    //     crc_clear();
-    //     write(address);
-    //     crc_update(address);
-    //     write(GETPINFUNCTIONS);
-    //     crc_update(GETPINFUNCTIONS);
-    //
-    //     data = read();
-    //     crc_update(data);
-    //     val1=data;
-    //
-    //     if(data!=-1){
-    //         data = read();
-    //         crc_update(data);
-    //         val2=data;
-    //     }
-    //
-    //     if(data!=-1){
-    //         data = read();
-    //         crc_update(data);
-    //         val3=data;
-    //     }
-    //
-    //     if(data!=-1){
-    //         uint16_t ccrc;
-    //         data = read();
-    //         if(data!=-1){
-    //             ccrc = data << 8;
-    //             data = read();
-    //             if(data!=-1){
-    //                 ccrc |= data;
-    //                 if(crc_get()==ccrc){
-    //                     S3mode = val1;
-    //                     S4mode = val2;
-    //                     S5mode = val3;
-    //                     return true;
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }while(trys--);
-    //
-    // return false;
+    uint8_t trys=MAXRETRY;
+    uint8_t val0,val1,val2;
+    do
+    {
+        serial_port.flushInput();
+        // Reset the crc checksum
+        crc_clear();
+
+        // Build the command to be sent
+        uint8_t command[2] = {address,GETPINFUNCTIONS};
+        serial_port.write(command,2);
+
+        // Update the Crc with the command we just sent
+        crc_update(command,2);
+
+        uint8_t buffer[5] = {0,0,0,0,0};
+
+        serial_port.read(buffer,5);
+
+        // Update the Crc with the response we just read, minus the 2 crc bytes :)
+        crc_update(buffer,3);
+
+        val0 = buffer[0];
+        val1 = buffer[1];
+        val2 = buffer[2];
+
+        uint16_t crc_read = buffer[3] << 8 | buffer[4];
+
+        if(crc_read == crc_get())
+        {
+            S3mode = val0;
+            S4mode = val1;
+            S5mode = val2;
+            return true;
+        }
+
+
+    }while(trys--);
+
+    return false;
 }
 
 bool Roboclaw::SetDeadBand(uint8_t address, uint8_t Min, uint8_t Max){

@@ -139,7 +139,7 @@ class Roboclaw
 		 * this will likely be deprecated in future version as the crc_ variable
 		 * 		can be accessed directly
 		 */
-		uint16_t& crc_get();
+		const uint16_t& crc_get();
 
 		/*
 		 * writes n bytes to the serial port as specified by the arguments
