@@ -9,7 +9,8 @@
 #ifndef ROBOCLAW_H
 #define ROBOCLAW_H
 
-#include <cstdint>
+#include <stdint.h>
+#include <stdarg.h>
 #include <string>
 
 class Roboclaw
